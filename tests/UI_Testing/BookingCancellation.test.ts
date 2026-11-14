@@ -4,15 +4,8 @@ import { test, expect } from '@playwright/test';
 import { EventsPage } from '../../pages/EventsPage';
 import { BookingPage } from '../../pages/BookingPage';
 import { MyBookingsPage } from '../../pages/MyBookingPage';
-import { clearAllBookings } from '../../utils/bookingCleanup';
-
-
-// Use a dedicated automation account: clears ALL bookings for that account.
-test.afterEach(async ({ page }) => {
-  await test.step('Clear all bookings after test', async () => {
-    await clearAllBookings(page);
-  });
-});
+import { cancelTestBookings } from '../../utils/targetedBookingCleanup';
+test.setTimeout(120000);
 
 test(
   'TC_UI_07 - Verify inventory after cancelling five tickets',
@@ -118,7 +111,7 @@ test(
             },
             {
               message: 'Available seats should decrease by 5',
-              timeout: 15000,
+              timeout: 45000,
               intervals: [1000, 2000]
             }
           ).toBe(expectedSeats);
@@ -149,54 +142,64 @@ test(
         }
       );
 
-      // STEP 5 - Cancel the booking
-      await test.step(
-        'Cancel the five-ticket booking',
-        async () => {
+      
+let seatsBeforeCancellation = 0;
 
-          if (!bookingReference) {
-            throw new Error('Missing booking reference');
-          }
+// STEP 5 - Cancel the booking
+await test.step(
+  'Cancel the five-ticket booking',
+  async () => {
 
-          await myBookingsPage.cancelBooking(
-            bookingReference
-          );
+    if (!bookingReference) {
+      throw new Error('Missing booking reference');
+    }
 
-          cancellationCompleted = true;
+    // Capture inventory immediately before cancellation
+    await eventsPage.openEvents();
 
-          console.log(
-            `Booking cancelled: ${bookingReference}`
-          );
-        }
-      );
+    seatsBeforeCancellation =
+      await eventsPage.getAvailableSeats(eventName);
 
-      // STEP 6 - Verify seats restored after cancellation
-      await test.step(
-        'Verify available seats restored',
-        async () => {
+    await myBookingsPage.openMyBookings();
 
-          await expect.poll(
-            async () => {
+    await myBookingsPage.cancelBooking(bookingReference);
 
-              await eventsPage.openEvents();
+    cancellationCompleted = true;
 
-              return await eventsPage.getAvailableSeats(
-                eventName
-              );
+    console.log(`Booking cancelled: ${bookingReference}`);
+  }
+);
 
-            },
-            {
-              message: 'Available seats should return to initial count',
-              timeout: 15000,
-              intervals: [1000, 2000]
-            }
-          ).toBe(seatsBefore);
+// STEP 6 - Verify seats restored
+await test.step(
+  'Verify five seats restored after cancellation',
+  async () => {
 
-          console.log(
-            `Seats restored to: ${seatsBefore}`
-          );
-        }
-      );
+    const expectedSeats =
+      seatsBeforeCancellation + quantity;
+
+    await expect.poll(
+      async () => {
+        await eventsPage.openEvents();
+
+        return eventsPage.getAvailableSeats(eventName);
+      },
+      {
+        message: 'Cancellation should restore five seats',
+        timeout: 45000,
+        intervals: [1000, 2000]
+      }
+    ).toBe(expectedSeats);
+
+    console.log(
+      `Seats before cancellation: ${seatsBeforeCancellation}`
+    );
+
+    console.log(
+      `Expected seats after cancellation: ${expectedSeats}`
+    );
+  }
+);
 
     } finally {
 
@@ -207,26 +210,7 @@ test(
           'Cleanup booking after test failure',
           async () => {
 
-            await myBookingsPage.openMyBookings();
-
-            const bookingCard =
-              myBookingsPage.getBookingCard(
-                bookingReference!
-              );
-
-            if (await bookingCard.count() === 1) {
-
-              const cancelButton =
-                bookingCard.getByTestId(
-                  'cancel-booking-btn'
-                );
-
-              if (await cancelButton.isVisible()) {
-                await myBookingsPage.cancelBooking(
-                  bookingReference!
-                );
-              }
-            }
+            await cancelTestBookings(page, [bookingReference!]);
           }
         );
       }

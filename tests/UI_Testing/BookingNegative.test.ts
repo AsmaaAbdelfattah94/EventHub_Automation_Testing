@@ -3,24 +3,8 @@ import { test, expect } from '@playwright/test';
 
 import { EventsPage } from '../../pages/EventsPage';
 import { BookingPage } from '../../pages/BookingPage';
-import { MyBookingsPage } from '../../pages/MyBookingPage';
-import { clearAllBookings } from '../../utils/bookingCleanup';
+import { cancelTestBookings } from '../../utils/targetedBookingCleanup';
 
-
-// Use a dedicated automation account: clears ALL bookings for that account.
-test.afterEach(async ({ page }) => {
-  await test.step('Clear all bookings after test', async () => {
-    await clearAllBookings(page);
-  });
-});
-
-// Negative tests assert an empty initial state; also reset leftover data
-// from earlier failed runs before each case.
-test.beforeEach(async ({ page }) => {
-  await test.step('Reset test account before validation', async () => {
-    await clearAllBookings(page);
-  });
-});
 
 // Test data
 const NegativeScenarios = [
@@ -64,21 +48,12 @@ test.describe('Booking input validation', () => {
         // Initialize Page Objects
         const eventsPage = new EventsPage(page);
         const bookingPage = new BookingPage(page);
-        const myBookingsPage = new MyBookingsPage(page);
 
         const eventName = 'Dilli Diwali Mela';
         const customerName = 'Automation Test User';
 
         let bookingReference: string | undefined;
         let bookingAccepted = false;
-
-        // STEP 1 - Verify initial account state
-        await test.step('Verify My Bookings is empty',
-          async () => {
-            await myBookingsPage.openMyBookings();
-            await myBookingsPage.verifyNoBookings();
-          }
-        );
 
         // STEP 2 - Open event
         await test.step('Select event', async () => {
@@ -146,10 +121,7 @@ test.describe('Booking input validation', () => {
           if (bookingReference) {
             await test.step('Clean up unexpected booking',
               async () => {
-                await myBookingsPage.openMyBookings();
-                await myBookingsPage.cancelBooking(
-                  bookingReference!
-                );
+                await cancelTestBookings(page, [bookingReference!]);
               }
             );
           }
@@ -164,8 +136,8 @@ test.describe('Booking input validation', () => {
               `Booking was accepted for ${scenario.description}`
             ).toBe(false);
 
-            await myBookingsPage.openMyBookings();
-            await myBookingsPage.verifyNoBookings();
+            // Existing account bookings are intentionally preserved.
+            // A successful submission is detected above and fails this assertion.
           }
         );
 

@@ -4,20 +4,21 @@ import { test, expect, Page } from '@playwright/test';
 import { EventsPage } from '../../pages/EventsPage';
 import { BookingPage } from '../../pages/BookingPage';
 import { MyBookingsPage } from '../../pages/MyBookingPage';
-import { clearAllBookings } from '../../utils/bookingCleanup';
+import { cancelTestBookings } from '../../utils/targetedBookingCleanup';
 
 // Shared test data
 const EVENT_1 = 'Dilli Diwali Mela';
 const EVENT_2 = 'Hollywood Monsoon Night';
 
 const customerName = 'Automation Test User';
-const customerPhone = '01066666666';
+const customerPhone = '0106666666';
 
 // Reusable booking operation
 async function createBooking(
   page: Page,
   eventName: string,
-  quantity: number
+  quantity: number,
+  createdReferences: Set<string>
 ): Promise<string> {
 
   const eventsPage = new EventsPage(page);
@@ -43,9 +44,8 @@ async function createBooking(
   await bookingPage.confirmBooking();
 
   const reference = await bookingPage.getBookingReference();
-
+  createdReferences.add(reference); // Track before any assertions.
   expect(reference).toMatch(/^[A-Z]-[A-Z0-9]+$/);
-
   return reference;
 }
 
@@ -53,16 +53,9 @@ test.describe('Multiple booking scenarios', () => {
 
   test.describe.configure({ mode: 'default' });
 
-  // Cleanup is restricted to a dedicated test account
-  test.afterEach(async ({ page }) => {
-    await test.step('Clear test account bookings', async () => {
-      await clearAllBookings(page);
-    });
-  });
-
   // TC_UI_08
   test(
-    'TC_UI_08 - Prevent booking beyond maximum limit',
+    'TC_UI_08 - Booking Multiple Events - two different events with unique references',
     async ({ page }) => {
 
       test.setTimeout(90000);
@@ -72,13 +65,17 @@ test.describe('Multiple booking scenarios', () => {
 
       let reference1 = '';
       let reference2 = '';
+      const createdReferences = new Set<string>();
+
+      try {
 
       // STEP 1 - Book first event
       await test.step('Book Dilli Diwali Mela', async () => {
         reference1 = await createBooking(
           page,
           EVENT_1,
-          1
+          1,
+          createdReferences
         );
       });
 
@@ -89,7 +86,8 @@ test.describe('Multiple booking scenarios', () => {
           reference2 = await createBooking(
             page,
             EVENT_2,
-            2
+            2,
+            createdReferences
           );
         }
       );
@@ -129,12 +127,17 @@ test.describe('Multiple booking scenarios', () => {
         }
       );
 
+      } finally {
+        await test.step('Cancel only TC_UI_08 bookings', async () => {
+          await cancelTestBookings(page, createdReferences);
+        });
+      }
     }
   );
 
   // TC_UI_09
   test(
-    'TC_UI_09 - Prevent booking beyond maximum limit',
+    'TC_UI_09 - Booking same event multiple times - verify limit of tickets and unique references',
     async ({ page }) => {
 
       test.setTimeout(90000);
@@ -153,6 +156,9 @@ test.describe('Multiple booking scenarios', () => {
       }
 
       let firstReference = '';
+      const createdReferences = new Set<string>();
+
+      try {
 
       // STEP 1 - Create first booking
       await test.step('Book first 10 tickets', async () => {
@@ -160,7 +166,8 @@ test.describe('Multiple booking scenarios', () => {
         firstReference = await createBooking(
           page,
           eventName,
-          quantity
+          quantity,
+          createdReferences
         );
       });
 
@@ -192,8 +199,23 @@ test.describe('Multiple booking scenarios', () => {
             customerPhone
           );
 
-          // Submit only; success is NOT expected
+          // A second confirmation is a test failure, but capture its
+          // reference first so it can be cancelled in finally.
           await bookingPage.submitBooking();
+          const confirmation = page.getByText('Booking Confirmed!', {
+            exact: false
+          });
+          const limitError = page.getByText(
+            /maximum.*tickets|ticket.*limit|already booked/i
+          );
+          await expect(
+            confirmation.or(limitError).first()
+          ).toBeVisible();
+          if (await confirmation.isVisible()) {
+            const unexpectedReference = await bookingPage.getBookingReference();
+            createdReferences.add(unexpectedReference);
+            console.log(`Unexpected second booking: ${unexpectedReference}`);
+          }
         }
       );
 
@@ -229,16 +251,23 @@ test.describe('Multiple booking scenarios', () => {
             eventName
           );
 
-          // This assumes the dedicated test account
-          // started with no other bookings for the event.
-          const eventBookings = page.getByTestId(
-            'booking-card'
-          ).filter({ hasText: eventName });
-
-          await expect(eventBookings).toHaveCount(1);
+          // Do not assert a global booking count: other account bookings
+          // may exist, and must remain untouched by this test.
+          const secondReference = [...createdReferences].find(
+            reference => reference !== firstReference
+          );
+          expect(
+            secondReference,
+            'A second booking should not have been created'
+          ).toBeUndefined();
         }
       );
 
+      } finally {
+        await test.step('Cancel only TC_UI_09 bookings', async () => {
+          await cancelTestBookings(page, createdReferences);
+        });
+      }
     }
   );
 

@@ -4,15 +4,8 @@ import { test, expect } from '@playwright/test';
 import { EventsPage } from '../../pages/EventsPage';
 import { BookingPage } from '../../pages/BookingPage';
 import { MyBookingsPage } from '../../pages/MyBookingPage';
-import { clearAllBookings } from '../../utils/bookingCleanup';
+import { cancelTestBookings } from '../../utils/targetedBookingCleanup';
 
-
-// Use a dedicated automation account: clears ALL bookings for that account.
-test.afterEach(async ({ page }) => {
-  await test.step('Clear all bookings after test', async () => {
-    await clearAllBookings(page);
-  });
-});
 
 // Test scenarios
 const scenarios = [
@@ -207,11 +200,7 @@ for (const scenario of scenarios) {
           await test.step('Cancel booking and clean up',
             async () => {
 
-              await myBookingsPage.openMyBookings();
-
-              await myBookingsPage.cancelBooking(
-                bookingReference!
-              );
+              await cancelTestBookings(page, [bookingReference!]);
 
               console.log(
                 `${scenario.id}: Booking ${bookingReference} cancelled`
