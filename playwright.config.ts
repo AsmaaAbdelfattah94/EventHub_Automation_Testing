@@ -44,26 +44,22 @@ export default defineConfig({
 
   /* Configure projects for major browsers */
   projects: [
-      {
+  {
     name: 'setup',
-    testMatch: /.*\.setup\.ts/
+    testMatch: /auth\.setup\.ts/
   },
   {
     name: 'chromium',
-    testIgnore: /.*\.setup\.ts/,
+    testMatch: /UI_Testing[\\/].*\.test\.ts/,
     use: {
       ...devices['Desktop Chrome'],
       storageState: 'playwright/.auth/user.json'
     },
     dependencies: ['setup']
   },
-{
+  {
     name: 'api',
-    testMatch: /.*API_Testing\/.*\.test\.ts/,
-    timeout: 120000,
-    use: {
-      baseURL: process.env.API_BASE_URL
-    }
+    testMatch: /API_Testing[\\/].*\.test\.ts/
   }
 
 /*    {
