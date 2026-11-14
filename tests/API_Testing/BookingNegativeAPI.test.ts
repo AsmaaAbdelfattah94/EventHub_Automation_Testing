@@ -727,38 +727,29 @@ test.describe('Booking API - Negative Scenarios', () => {
   // TC_API_18 - Non-numeric booking ID on cancellation
   // =====================================================
 
-  test(
-    'TC_API_18 - Reject cancellation with a non-numeric booking ID',
-    {
-      annotation: {
-        type: 'defect',
-        description:
-          'DELETE /bookings/abc returns 500 Internal server error instead of a 4xx client error. See README: Story / documentation / application mismatches.'
+  // TC_API_18 - Non-numeric booking ID
+test(
+  'TC_API_18 - Reject cancellation with a non-numeric booking ID',
+  async ({ authenticatedRequest }) => {
+
+    const response = await test.step(
+      'Attempt cancellation with invalid booking ID "abc"',
+      async () => authenticatedRequest.delete('bookings/abc')
+    );
+
+    await test.step(
+      'Verify HTTP 404 - Booking not found',
+      async () => {
+
+        const responseBody = await response.text();
+
+        expect(
+          response.status(),
+          `Expected 404, received ${response.status()}. Response: ${responseBody}`
+        ).toBe(404);
       }
-    },
-    async ({ authenticatedRequest }) => {
-
-      const response = await test.step(
-        'Cancel booking "abc"',
-        async () => authenticatedRequest.delete('bookings/abc')
-      );
-
-      test.fail(
-        true,
-        'Known defect: the API returns 500 for a non-numeric booking ID'
-      );
-
-      await test.step(
-        'Verify a client error (400 or 404)',
-        async () => {
-
-          expect(
-            [400, 404],
-            `HTTP ${response.status()}: ${await response.text()}`
-          ).toContain(response.status());
-        }
-      );
-    }
-  );
+    );
+  }
+);
 
 });
