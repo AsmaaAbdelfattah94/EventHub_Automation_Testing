@@ -24,6 +24,24 @@ const validBookingData: CreateBookingRequest = {
 const quantityValidationMessage =
   'Quantity must be an integer between 1 and 10';
 
+const nameValidationMessage =
+  'Customer name must be at least 2 characters';
+
+const emailValidationMessage =
+  'Customer email must be a valid email address';
+
+const phoneValidationMessage =
+  'Customer phone must be at least 10 digits';
+
+// Message returned for each missing required field
+const requiredFieldMessages = [
+  { field: 'eventId', message: 'Event ID is required' },
+  { field: 'customerName', message: 'Customer name is required' },
+  { field: 'customerEmail', message: 'Customer email is required' },
+  { field: 'customerPhone', message: 'Customer phone is required' },
+  { field: 'quantity', message: 'Quantity is required' }
+];
+
 test.describe('Booking API - Negative Scenarios', () => {
 
   // =====================================================
@@ -83,11 +101,13 @@ test.describe('Booking API - Negative Scenarios', () => {
     'TC_API_03 - Reject booking with nonexistent event',
     async ({ bookingApi }) => {
 
+      const nonexistentEventId = 2147483647;
+
       const response = await test.step(
         'Attempt booking for nonexistent event',
         async () => bookingApi.createBooking({
           ...validBookingData,
-          eventId: 2147483647
+          eventId: nonexistentEventId
         })
       );
 
@@ -103,7 +123,12 @@ test.describe('Booking API - Negative Scenarios', () => {
           ).toBe(404);
 
           expect(body.success).toBe(false);
-          expect(body.error).toBeTruthy();
+
+          // The exact message proves the 404 is caused by the missing
+          // event, not by something else such as a wrong URL.
+          expect(body.error).toBe(
+            `Event with id ${nonexistentEventId} not found`
+          );
         }
       );
     }
@@ -244,11 +269,6 @@ test.describe('Booking API - Negative Scenarios', () => {
         }
       );
 
-      console.log(
-        `Selected event ID: ${event.id}, ` +
-        `Available seats: ${event.availableSeats}`
-      );
-
       // STEP 2 - Prepare a request for 10 tickets
       const bookingData: CreateBookingRequest = {
         ...validBookingData,
@@ -290,6 +310,410 @@ test.describe('Booking API - Negative Scenarios', () => {
 
       // If a booking is unexpectedly created with HTTP 201,
       // the API fixture tracks and cancels it.
+    }
+  );
+
+  // =====================================================
+  // TC_API_10 - Customer name shorter than 2 characters
+  // =====================================================
+
+  test(
+    'TC_API_10 - Reject booking with customer name shorter than 2 characters',
+    async ({ bookingApi, eventsApi }) => {
+
+      const event = await test.step(
+        'Retrieve available event',
+        async () => eventsApi.getAvailableEvent(2)
+      );
+
+      const bookingData: CreateBookingRequest = {
+        ...validBookingData,
+        eventId: event.id,
+        customerName: 'A'
+      };
+
+      const response = await test.step(
+        'Attempt booking with a 1-character name',
+        async () => bookingApi.createBooking(bookingData)
+      );
+
+      await test.step(
+        'Verify customer name validation error',
+        async () => {
+
+          const body = await response.json();
+
+          expect(
+            response.status(),
+            JSON.stringify(body)
+          ).toBe(400);
+
+          expect(body.success).toBe(false);
+          expect(body.error).toBe('Validation failed');
+
+          expect(body.details).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({
+                field: 'customerName',
+                message: nameValidationMessage
+              })
+            ])
+          );
+        }
+      );
+    }
+  );
+
+  // =====================================================
+  // TC_API_11 - Invalid customer email
+  // =====================================================
+
+  test(
+    'TC_API_11 - Reject booking with invalid customer email',
+    async ({ bookingApi, eventsApi }) => {
+
+      const event = await test.step(
+        'Retrieve available event',
+        async () => eventsApi.getAvailableEvent(2)
+      );
+
+      const bookingData: CreateBookingRequest = {
+        ...validBookingData,
+        eventId: event.id,
+        customerName: `API Invalid Email ${Date.now()}`,
+        customerEmail: 'not-an-email'
+      };
+
+      const response = await test.step(
+        'Attempt booking with an invalid email',
+        async () => bookingApi.createBooking(bookingData)
+      );
+
+      await test.step(
+        'Verify customer email validation error',
+        async () => {
+
+          const body = await response.json();
+
+          expect(
+            response.status(),
+            JSON.stringify(body)
+          ).toBe(400);
+
+          expect(body.success).toBe(false);
+          expect(body.error).toBe('Validation failed');
+
+          expect(body.details).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({
+                field: 'customerEmail',
+                message: emailValidationMessage
+              })
+            ])
+          );
+        }
+      );
+    }
+  );
+
+  // =====================================================
+  // TC_API_12 - Customer phone too short (3 digits)
+  // =====================================================
+
+  test(
+    'TC_API_12 - Reject booking with customer phone too short (3 digits)',
+    async ({ bookingApi, eventsApi }) => {
+
+      const event = await test.step(
+        'Retrieve available event',
+        async () => eventsApi.getAvailableEvent(2)
+      );
+
+      const bookingData: CreateBookingRequest = {
+        ...validBookingData,
+        eventId: event.id,
+        customerName: `API Short Phone ${Date.now()}`,
+        customerPhone: '123'
+      };
+
+      const response = await test.step(
+        'Attempt booking with a 3-digit phone',
+        async () => bookingApi.createBooking(bookingData)
+      );
+
+      await test.step(
+        'Verify customer phone validation error',
+        async () => {
+
+          const body = await response.json();
+
+          expect(
+            response.status(),
+            JSON.stringify(body)
+          ).toBe(400);
+
+          expect(body.success).toBe(false);
+          expect(body.error).toBe('Validation failed');
+
+          expect(body.details).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({
+                field: 'customerPhone',
+                message: phoneValidationMessage
+              })
+            ])
+          );
+        }
+      );
+    }
+  );
+
+  // =====================================================
+  // TC_API_13 - Customer phone too long (20 digits)
+  // =====================================================
+
+  test(
+    'TC_API_13 - Reject booking with customer phone too long (20 digits)',
+    {
+      annotation: {
+        type: 'open-question',
+        description:
+          'The API docs only set customerPhone minLength 10 (no maximum) and a 20-digit phone is accepted, while the UI says "10-digit phone". What is the actual phone rule? See README: Story / documentation / application mismatches.'
+      }
+    },
+    async ({ bookingApi, eventsApi }) => {
+
+      const event = await test.step(
+        'Retrieve available event',
+        async () => eventsApi.getAvailableEvent(2)
+      );
+
+      const bookingData: CreateBookingRequest = {
+        ...validBookingData,
+        eventId: event.id,
+        customerName: `API Long Phone ${Date.now()}`,
+        customerPhone: '12345678901234567890'
+      };
+
+      const response = await test.step(
+        'Attempt booking with a 20-digit phone',
+        async () => bookingApi.createBooking(bookingData)
+      );
+
+      // Marked as an expected failure only from here, so a failure
+      // in the steps above is still reported as a real regression.
+      test.fail(
+        true,
+        'Open question for the PO: the API accepts a 20-digit phone'
+      );
+
+      await test.step(
+        'Verify customer phone validation error',
+        async () => {
+
+          const body = await response.json();
+
+          expect(
+            response.status(),
+            JSON.stringify(body)
+          ).toBe(400);
+
+          expect(body.success).toBe(false);
+          expect(body.error).toBe('Validation failed');
+
+          // No maximum is documented, so there is no message to
+          // compare yet; only the rejected field is checked.
+          expect(body.details).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({
+                field: 'customerPhone'
+              })
+            ])
+          );
+        }
+      );
+
+      // The booking created by the API is tracked and
+      // cancelled by the API fixture.
+    }
+  );
+
+  // =====================================================
+  // TC_API_14 - Non-integer quantity (1.5)
+  // =====================================================
+
+  test(
+    'TC_API_14 - Reject booking with non-integer quantity (1.5)',
+    async ({ bookingApi, eventsApi }) => {
+
+      const event = await test.step(
+        'Retrieve available event',
+        async () => eventsApi.getAvailableEvent(2)
+      );
+
+      const bookingData: CreateBookingRequest = {
+        ...validBookingData,
+        eventId: event.id,
+        customerName: `API Decimal Quantity ${Date.now()}`,
+        quantity: 1.5
+      };
+
+      const response = await test.step(
+        'Attempt booking with 1.5 tickets',
+        async () => bookingApi.createBooking(bookingData)
+      );
+
+      await test.step(
+        'Verify quantity validation error',
+        async () => {
+
+          const body = await response.json();
+
+          expect(
+            response.status(),
+            JSON.stringify(body)
+          ).toBe(400);
+
+          expect(body.success).toBe(false);
+          expect(body.error).toBe('Validation failed');
+
+          expect(body.details).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({
+                field: 'quantity',
+                message: quantityValidationMessage
+              })
+            ])
+          );
+        }
+      );
+    }
+  );
+
+  // =====================================================
+  // TC_API_15 - All required fields missing
+  // =====================================================
+
+  test(
+    'TC_API_15 - Reject booking with all required fields missing',
+    async ({ bookingApi }) => {
+
+      const response = await test.step(
+        'Submit booking with an empty body',
+        async () => bookingApi.createBooking(
+          {} as CreateBookingRequest
+        )
+      );
+
+      await test.step(
+        'Verify a required-field error for every field',
+        async () => {
+
+          const body = await response.json();
+
+          expect(
+            response.status(),
+            JSON.stringify(body)
+          ).toBe(400);
+
+          expect(body.success).toBe(false);
+          expect(body.error).toBe('Validation failed');
+
+          expect(body.details).toEqual(
+            expect.arrayContaining(
+              requiredFieldMessages.map(expected =>
+                expect.objectContaining(expected)
+              )
+            )
+          );
+        }
+      );
+    }
+  );
+
+  // =====================================================
+  // TC_API_16 - Customer name of exactly 2 characters (BVA)
+  // =====================================================
+
+  test(
+    'TC_API_16 - Accept booking with customer name of exactly 2 characters (BVA)',
+    async ({ bookingApi, eventsApi }) => {
+
+      const event = await test.step(
+        'Retrieve available event',
+        async () => eventsApi.getAvailableEvent(2)
+      );
+
+      const bookingData: CreateBookingRequest = {
+        ...validBookingData,
+        eventId: event.id,
+        customerName: 'Al'
+      };
+
+      const response = await test.step(
+        'Create booking with a 2-character name',
+        async () => bookingApi.createBooking(bookingData)
+      );
+
+      await test.step(
+        'Verify the booking is created',
+        async () => {
+
+          const body = await response.json();
+
+          expect(
+            response.status(),
+            JSON.stringify(body)
+          ).toBe(201);
+
+          expect(body.success).toBe(true);
+
+          expect(body.data.customerName).toBe(
+            bookingData.customerName
+          );
+        }
+      );
+
+      // The booking is tracked and cancelled by the API fixture.
+    }
+  );
+
+
+  // =====================================================
+  // TC_API_17 - Non-numeric booking ID on cancellation
+  // =====================================================
+
+  test(
+    'TC_API_17 - Reject cancellation with a non-numeric booking ID',
+    {
+      annotation: {
+        type: 'defect',
+        description:
+          'DELETE /bookings/abc returns 500 Internal server error instead of a 4xx client error. See README: Story / documentation / application mismatches.'
+      }
+    },
+    async ({ authenticatedRequest }) => {
+
+      const response = await test.step(
+        'Cancel booking "abc"',
+        async () => authenticatedRequest.delete('bookings/abc')
+      );
+
+      test.fail(
+        true,
+        'Known defect: the API returns 500 for a non-numeric booking ID'
+      );
+
+      await test.step(
+        'Verify a client error (400 or 404)',
+        async () => {
+
+          expect(
+            [400, 404],
+            `HTTP ${response.status()}: ${await response.text()}`
+          ).toContain(response.status());
+        }
+      );
     }
   );
 

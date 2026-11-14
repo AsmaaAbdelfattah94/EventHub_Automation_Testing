@@ -6,7 +6,8 @@ import {
 
 import {
   CreateBookingRequest,
-  BookingData
+  BookingData,
+  BookingResponse
 } from './models/BookingModels';
 
 type BookingTracking = {
@@ -46,56 +47,45 @@ export class BookingApiClient {
     return response;
   }
 
-  async getBookings(
-    page = 1,
-    limit = 50
+  async getBookingById(
+    bookingId: number
   ): Promise<APIResponse> {
 
-    return this.request.get('bookings', {
-      params: { page, limit },
-      maxRetries: 5
-    });
+    return this.request.get(`bookings/${bookingId}`);
   }
 
-  async findBookingById(
+  // Booking from GET /bookings/{id}, or undefined if it does not exist
+  async findBooking(
     bookingId: number
   ): Promise<BookingData | undefined> {
 
-    let page = 1;
+    const response = await this.getBookingById(bookingId);
 
-    while (true) {
-      const response = await this.getBookings(page, 50);
+    if (response.status() === 404) return undefined;
 
-      if (response.status() !== 200) {
-        throw new Error(
-          `GET bookings failed: HTTP ${response.status()}`
-        );
-      }
-
-      const body = await response.json();
-
-      if (!body.success || !Array.isArray(body.data)) {
-        throw new Error('Invalid bookings response');
-      }
-
-      const found = (body.data as BookingData[])
-        .find(booking => booking.id === bookingId);
-
-      if (found) return found;
-
-      const totalPages = body.pagination?.totalPages;
-
-      if (
-        !Number.isInteger(totalPages) ||
-        totalPages < 1
-      ) {
-        throw new Error('Invalid bookings pagination');
-      }
-
-      if (page >= totalPages) return undefined;
-
-      page++;
+    if (response.status() !== 200) {
+      throw new Error(
+        `GET bookings/${bookingId} failed: HTTP ${response.status()}`
+      );
     }
+
+    const body =
+      (await response.json()) as BookingResponse;
+
+    if (!body.success || !body.data) {
+      throw new Error(`Invalid response for booking ${bookingId}`);
+    }
+
+    return body.data;
+  }
+
+  async getBookingByRef(
+    bookingRef: string
+  ): Promise<APIResponse> {
+
+    return this.request.get(
+      `bookings/ref/${encodeURIComponent(bookingRef)}`
+    );
   }
 
   async cancelBooking(

@@ -7,12 +7,17 @@ export interface EventData {
   venue: string;
   city: string;
   eventDate: string;
-  price: number;
+  price: string;
   totalSeats: number;
   availableSeats: number;
   imageUrl: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface EventResponse {
+  success: boolean;
+  data: EventData;
 }
 
 export interface EventsResponse {

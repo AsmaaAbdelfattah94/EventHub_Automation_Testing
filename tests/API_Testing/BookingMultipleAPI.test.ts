@@ -1,18 +1,14 @@
 
 import { test, expect } from '../../fixtures/apiFixtures';
 
+import { BOOKING_REF_PATTERN } from '../../utils/bookingReference';
+
 import {
   CreateBookingRequest,
   CreateBookingResponse
 } from '../../api/models/BookingModels';
 
 test.describe('Multiple Booking API Scenarios', () => {
-
-  const customerEmail = process.env.TEST_EMAIL;
-
-  if (!customerEmail) {
-    throw new Error('TEST_EMAIL is missing');
-  }
 
   const customerPhone = '+919876543210';
 
@@ -25,6 +21,12 @@ test.describe('Multiple Booking API Scenarios', () => {
     async ({ bookingApi, eventsApi }) => {
 
       test.setTimeout(90000);
+
+      const customerEmail = process.env.TEST_EMAIL;
+
+      if (!customerEmail) {
+        throw new Error('TEST_EMAIL is missing');
+      }
 
       const quantities = [1, 2];
 
@@ -78,7 +80,7 @@ test.describe('Multiple Booking API Scenarios', () => {
 
             expect(body.success).toBe(true);
             expect(body.data.id).toBeGreaterThan(0);
-            expect(body.data.bookingRef).toBeTruthy();
+            expect(body.data.bookingRef).toMatch(BOOKING_REF_PATTERN);
 
             expect(body.data.eventId).toBe(event.id);
             expect(body.data.quantity).toBe(quantity);
@@ -86,7 +88,7 @@ test.describe('Multiple Booking API Scenarios', () => {
 
             // API may return prices as strings
             expect(Number(body.data.totalPrice)).toBeCloseTo(
-              event.price * quantity,
+              Number(event.price) * quantity,
               2
             );
 
@@ -124,7 +126,7 @@ test.describe('Multiple Booking API Scenarios', () => {
             const quantity = quantities[i];
 
             const saved =
-              await bookingApi.findBookingById(created.id);
+              await bookingApi.findBooking(created.id);
 
             expect(saved).toBeDefined();
 
@@ -137,7 +139,7 @@ test.describe('Multiple Booking API Scenarios', () => {
             expect(saved?.status).toBe('confirmed');
 
             expect(Number(saved?.totalPrice)).toBeCloseTo(
-              event.price * quantity,
+              Number(event.price) * quantity,
               2
             );
           }
@@ -155,9 +157,22 @@ test.describe('Multiple Booking API Scenarios', () => {
 
   test(
     'TC_API_07 - Reject second booking after booking 10 tickets',
+    {
+      annotation: {
+        type: 'open-question',
+        description:
+          'The API docs limit quantity to 1-10 per request only. Is the 10-ticket maximum cumulative per user/event? See README: Story / documentation / application mismatches.'
+      }
+    },
     async ({ bookingApi, eventsApi }) => {
 
       test.setTimeout(90000);
+
+      const customerEmail = process.env.TEST_EMAIL;
+
+      if (!customerEmail) {
+        throw new Error('TEST_EMAIL is missing');
+      }
 
       const quantity = 10;
       const customerName =
@@ -195,7 +210,7 @@ test.describe('Multiple Booking API Scenarios', () => {
 
           expect(body.success).toBe(true);
           expect(body.data.id).toBeGreaterThan(0);
-          expect(body.data.bookingRef).toBeTruthy();
+          expect(body.data.bookingRef).toMatch(BOOKING_REF_PATTERN);
 
           expect(body.data.eventId).toBe(event.id);
           expect(body.data.quantity).toBe(10);
@@ -211,7 +226,7 @@ test.describe('Multiple Booking API Scenarios', () => {
         async () => {
 
           const saved =
-            await bookingApi.findBookingById(
+            await bookingApi.findBooking(
               firstBooking.id
             );
 
@@ -237,6 +252,13 @@ test.describe('Multiple Booking API Scenarios', () => {
       );
 
       // STEP 5 - Verify maximum ticket limit
+      // Marked as an expected failure only from here, so any failure in
+      // steps 1-4 is still reported as a real regression.
+      test.fail(
+        true,
+        'Open question for the PO: the second 10-ticket booking is accepted (201)'
+      );
+
       await test.step(
         'Verify second booking is rejected',
         async () => {
@@ -265,7 +287,7 @@ test.describe('Multiple Booking API Scenarios', () => {
         async () => {
 
           const saved =
-            await bookingApi.findBookingById(
+            await bookingApi.findBooking(
               firstBooking.id
             );
 

@@ -14,7 +14,7 @@ export interface BookingData {
   customerEmail: string;
   customerPhone: string;
   quantity: number;
-  totalPrice: number;
+  totalPrice: string;
   status: string;
   bookingRef: string;
   createdAt: string;
@@ -22,9 +22,14 @@ export interface BookingData {
   event: {
     id: number;
     title: string;
-    price: number;
+    price: string;
     availableSeats: number;
   };
+}
+
+export interface BookingResponse {
+  success: boolean;
+  data: BookingData;
 }
 
 export interface CreateBookingResponse {

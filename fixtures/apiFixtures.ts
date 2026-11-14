@@ -10,16 +10,20 @@ import { AuthApiClient } from '../api/AuthAPIClient';
 import { BookingApiClient } from '../api/BookingAPIClient';
 import { EventsApiClient } from '../api/EventsAPIClient';
 
-type ApiFixtures = {
-  authenticatedRequest: APIRequestContext;
+type ApiTestFixtures = {
   bookingApi: BookingApiClient;
   eventsApi: EventsApiClient;
 };
 
-export const test = base.extend<ApiFixtures>({
+type ApiWorkerFixtures = {
+  authenticatedRequest: APIRequestContext;
+};
 
-  // Centralized authentication
-  authenticatedRequest: async ({}, use) => {
+export const test = base.extend<ApiTestFixtures, ApiWorkerFixtures>({
+
+  // Centralized authentication, once per worker: every API test in the
+  // worker reuses the same authenticated context instead of logging in again.
+  authenticatedRequest: [async ({}, use) => {
 
     const baseURL = process.env.API_BASE_URL;
     const email = process.env.TEST_EMAIL;
@@ -63,7 +67,7 @@ export const test = base.extend<ApiFixtures>({
       await authorizedContext?.dispose();
       await loginContext.dispose();
     }
-  },
+  }, { scope: 'worker' }],
 
   // Booking client with automatic tracking and cleanup
   bookingApi: async ({ authenticatedRequest }, use) => {

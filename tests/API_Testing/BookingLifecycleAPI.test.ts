@@ -1,6 +1,8 @@
 
 import { test, expect } from '../../fixtures/apiFixtures';
 
+import { BOOKING_REF_PATTERN } from '../../utils/bookingReference';
+
 import {
   CreateBookingRequest,
   CreateBookingResponse
@@ -58,7 +60,7 @@ test(
 
         expect(body.success).toBe(true);
         expect(body.data.id).toBeGreaterThan(0);
-        expect(body.data.bookingRef).toBeTruthy();
+        expect(body.data.bookingRef).toMatch(BOOKING_REF_PATTERN);
 
         return body.data;
       }
@@ -72,7 +74,7 @@ test(
         await expect.poll(
           async () => {
             const updatedEvent =
-              await eventsApi.getEventById(event.id);
+              await eventsApi.getEvent(event.id);
 
             return updatedEvent.availableSeats;
           },
@@ -90,7 +92,7 @@ test(
       async () => {
 
         const savedBooking =
-          await bookingApi.findBookingById(booking.id);
+          await bookingApi.findBooking(booking.id);
 
         expect(savedBooking).toBeDefined();
 
@@ -128,7 +130,32 @@ test(
       }
     );
 
-    // STEP 6 - Verify seats restored
+    // STEP 6 - Verify the booking no longer exists (AC4)
+    // Observed behaviour: cancellation permanently deletes the booking
+    // (see README: Story / documentation / application mismatches).
+    await test.step(
+      'Verify cancelled booking no longer exists',
+      async () => {
+
+        const byId =
+          await bookingApi.getBookingById(booking.id);
+
+        expect(
+          byId.status(),
+          `GET bookings/${booking.id}: ${await byId.text()}`
+        ).toBe(404);
+
+        const byRef =
+          await bookingApi.getBookingByRef(booking.bookingRef);
+
+        expect(
+          byRef.status(),
+          `GET bookings/ref/${booking.bookingRef}: ${await byRef.text()}`
+        ).toBe(404);
+      }
+    );
+
+    // STEP 7 - Verify seats restored
     await test.step(
       'Verify inventory restored',
       async () => {
@@ -136,7 +163,7 @@ test(
         await expect.poll(
           async () => {
             const restoredEvent =
-              await eventsApi.getEventById(event.id);
+              await eventsApi.getEvent(event.id);
 
             return restoredEvent.availableSeats;
           },

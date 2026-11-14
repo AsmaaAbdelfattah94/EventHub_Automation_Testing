@@ -1,6 +1,8 @@
 
 import { test, expect } from '../../fixtures/apiFixtures';
 
+import { BOOKING_REF_PATTERN } from '../../utils/bookingReference';
+
 import {
   CreateBookingRequest,
   CreateBookingResponse
@@ -8,6 +10,13 @@ import {
 
 test(
   'TC_API_01 - Successfully create and validate booking',
+  {
+    annotation: {
+      type: 'open-question',
+      description:
+        'A dotted Gmail address is stored lower-cased with the dots removed. Must the email be stored exactly as submitted? See README: Story / documentation / application mismatches.'
+    }
+  },
   async ({ bookingApi, eventsApi }) => {
 
     // STEP 1 - Retrieve an available event
@@ -60,7 +69,7 @@ test(
 
         // Verify booking ID and reference
         expect(body.data.id).toBeGreaterThan(0);
-        expect(body.data.bookingRef).toBeTruthy();
+        expect(body.data.bookingRef).toMatch(BOOKING_REF_PATTERN);
 
         // Verify booking status
         expect(body.data.status).toBe('confirmed');
@@ -79,11 +88,6 @@ test(
           bookingData.customerName
         );
 
-        // Strict comparison: Preserve submitted email
-        expect(body.data.customerEmail).toBe(
-          bookingData.customerEmail
-        );
-
         expect(body.data.customerPhone).toBe(
           bookingData.customerPhone
         );
@@ -100,6 +104,18 @@ test(
         expect(Number(body.data.totalPrice)).toBeCloseTo(
           expectedTotal,
           2
+        );
+
+        // Open question: kept last so every check above still runs.
+        // Only this strict email comparison is an expected failure.
+        test.fail(
+          true,
+          'Open question for the PO: dotted Gmail addresses are stored without dots'
+        );
+
+        // Strict comparison: Preserve submitted email
+        expect(body.data.customerEmail).toBe(
+          bookingData.customerEmail
         );
       }
     );
