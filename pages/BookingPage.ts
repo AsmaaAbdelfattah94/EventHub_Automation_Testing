@@ -81,6 +81,14 @@ export class BookingPage {
     return this.readAmount('Total');
   }
 
+  // Value shown next to a label on the confirmation page,
+  // e.g. <span>Tickets</span><span>1</span> -> the "1" element
+  confirmationValue(label: string) {
+    return this.page.getByText(label, {
+      exact: true
+    }).last().locator('xpath=following-sibling::span[1]');
+  }
+
   // Enter customer information
   async enterCustomerDetails(
     name: string,

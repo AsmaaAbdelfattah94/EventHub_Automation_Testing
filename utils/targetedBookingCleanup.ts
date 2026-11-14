@@ -10,11 +10,14 @@ export async function cancelTestBookings(
   if (uniqueReferences.length === 0) return;
 
   const myBookingsPage = new MyBookingsPage(page);
-  await myBookingsPage.openMyBookings();
 
   const errors: string[] = [];
   for (const reference of uniqueReferences) {
     try {
+      // Reload per reference: openMyBookings waits until the list (or the
+      // empty state) has rendered, so a count of 0 really means "not listed".
+      await myBookingsPage.openMyBookings();
+
       const card = myBookingsPage.getBookingCard(reference);
       const count = await card.count();
       if (count === 0) continue; // Already cancelled or absent.
@@ -24,7 +27,7 @@ export async function cancelTestBookings(
       if (!(await cancelButton.isVisible())) continue; // Already cancelled.
 
       await myBookingsPage.cancelBooking(reference);
-      console.log(`Cleaned up test booking: ${reference}`);
+      await myBookingsPage.verifyBookingRemoved(reference);
     } catch (error) {
       errors.push(`${reference}: ${String(error)}`);
     }

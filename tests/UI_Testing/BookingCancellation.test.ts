@@ -1,20 +1,13 @@
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/uiFixtures';
 
-import { EventsPage } from '../../pages/EventsPage';
-import { BookingPage } from '../../pages/BookingPage';
-import { MyBookingsPage } from '../../pages/MyBookingPage';
-import { cancelTestBookings } from '../../utils/targetedBookingCleanup';
+import { BOOKING_REF_PATTERN } from '../../utils/bookingReference';
+
 test.setTimeout(120000);
 
 test(
   'TC_UI_07 - Verify inventory after cancelling five tickets',
-  async ({ page }) => {
-
-    // Initialize Page Objects
-    const eventsPage = new EventsPage(page);
-    const bookingPage = new BookingPage(page);
-    const myBookingsPage = new MyBookingsPage(page);
+  async ({ eventsPage, bookingPage, myBookingsPage, trackBooking }) => {
 
     // Test data
     const eventName = 'Hollywood Monsoon Night';
@@ -29,191 +22,145 @@ test(
 
     // Test variables
     let seatsBefore = 0;
-    let bookingReference: string | undefined;
-    let cancellationCompleted = false;
+    let seatsBeforeCancellation = 0;
+    let bookingReference = '';
 
-    try {
-
-      // STEP 1 - Capture available seats before booking
-      await test.step(
-        'Capture seats before booking',
-        async () => {
-
-          await eventsPage.openEvents();
-
-          seatsBefore =
-            await eventsPage.getAvailableSeats(eventName);
-
-          expect(seatsBefore).toBeGreaterThanOrEqual(
-            quantity
-          );
-
-          console.log(
-            `Seats before booking: ${seatsBefore}`
-          );
-        }
-      );
-
-      // STEP 2 - Book five tickets
-      await test.step(
-        'Create booking for five tickets',
-        async () => {
-
-          await eventsPage.selectEvent(eventName);
-
-          await bookingPage.selectTicketQuantity(
-            quantity
-          );
-
-          const summary =
-            await bookingPage.getTicketSummary();
-
-          expect(summary.quantity).toBe(quantity);
-
-          await bookingPage.enterCustomerDetails(
-            customerName,
-            customerEmail,
-            customerPhone
-          );
-
-          await bookingPage.confirmBooking();
-
-          bookingReference =
-            await bookingPage.getBookingReference();
-
-          expect(bookingReference).toMatch(
-            /^[A-Z]-[A-Z0-9]+$/
-          );
-
-          console.log(
-            `Created booking: ${bookingReference}`
-          );
-        }
-      );
-
-      // STEP 3 - Verify seats decreased by five
-      await test.step(
-        'Verify available seats decreased by five',
-        async () => {
-
-          const expectedSeats =
-            seatsBefore - quantity;
-
-          await expect.poll(
-            async () => {
-
-              await eventsPage.openEvents();
-
-              return await eventsPage.getAvailableSeats(
-                eventName
-              );
-
-            },
-            {
-              message: 'Available seats should decrease by 5',
-              timeout: 45000,
-              intervals: [1000, 2000]
-            }
-          ).toBe(expectedSeats);
-
-          console.log(
-            `Expected seats after booking: ${expectedSeats}`
-          );
-        }
-      );
-
-      // STEP 4 - Verify the booking in My Bookings
-      await test.step(
-        'Verify newly created booking',
-        async () => {
-
-          if (!bookingReference) {
-            throw new Error(
-              'Booking reference was not generated'
-            );
-          }
-
-          await myBookingsPage.openMyBookings();
-
-          await myBookingsPage.verifyBookingExists(
-            bookingReference,
-            eventName
-          );
-        }
-      );
-
-      
-let seatsBeforeCancellation = 0;
-
-// STEP 5 - Cancel the booking
-await test.step(
-  'Cancel the five-ticket booking',
-  async () => {
-
-    if (!bookingReference) {
-      throw new Error('Missing booking reference');
-    }
-
-    // Capture inventory immediately before cancellation
-    await eventsPage.openEvents();
-
-    seatsBeforeCancellation =
-      await eventsPage.getAvailableSeats(eventName);
-
-    await myBookingsPage.openMyBookings();
-
-    await myBookingsPage.cancelBooking(bookingReference);
-
-    cancellationCompleted = true;
-
-    console.log(`Booking cancelled: ${bookingReference}`);
-  }
-);
-
-// STEP 6 - Verify seats restored
-await test.step(
-  'Verify five seats restored after cancellation',
-  async () => {
-
-    const expectedSeats =
-      seatsBeforeCancellation + quantity;
-
-    await expect.poll(
+    // STEP 1 - Capture available seats before booking
+    await test.step(
+      'Capture seats before booking',
       async () => {
+
         await eventsPage.openEvents();
 
-        return eventsPage.getAvailableSeats(eventName);
-      },
-      {
-        message: 'Cancellation should restore five seats',
-        timeout: 45000,
-        intervals: [1000, 2000]
-      }
-    ).toBe(expectedSeats);
+        seatsBefore =
+          await eventsPage.getAvailableSeats(eventName);
 
-    console.log(
-      `Seats before cancellation: ${seatsBeforeCancellation}`
-    );
-
-    console.log(
-      `Expected seats after cancellation: ${expectedSeats}`
-    );
-  }
-);
-
-    } finally {
-
-      // Cleanup if the test fails before cancellation
-      if (bookingReference && !cancellationCompleted) {
-
-        await test.step(
-          'Cleanup booking after test failure',
-          async () => {
-
-            await cancelTestBookings(page, [bookingReference!]);
-          }
+        expect(seatsBefore).toBeGreaterThanOrEqual(
+          quantity
         );
       }
-    }
+    );
+
+    // STEP 2 - Book five tickets
+    await test.step(
+      'Create booking for five tickets',
+      async () => {
+
+        await eventsPage.selectEvent(eventName);
+
+        await bookingPage.selectTicketQuantity(
+          quantity
+        );
+
+        const summary =
+          await bookingPage.getTicketSummary();
+
+        expect(summary.quantity).toBe(quantity);
+
+        await bookingPage.enterCustomerDetails(
+          customerName,
+          customerEmail,
+          customerPhone
+        );
+
+        await bookingPage.confirmBooking();
+
+        // Track for cleanup in case a later step fails before
+        // the booking is cancelled.
+        bookingReference =
+          await bookingPage.getBookingReference();
+
+        trackBooking(bookingReference);
+
+        expect(bookingReference).toMatch(
+          BOOKING_REF_PATTERN
+        );
+      }
+    );
+
+    // STEP 3 - Verify seats decreased by five
+    await test.step(
+      'Verify available seats decreased by five',
+      async () => {
+
+        await expect.poll(
+          async () => {
+
+            await eventsPage.openEvents();
+
+            return eventsPage.getAvailableSeats(eventName);
+          },
+          {
+            message: 'Available seats should decrease by 5',
+            timeout: 45000,
+            intervals: [1000, 2000]
+          }
+        ).toBe(seatsBefore - quantity);
+      }
+    );
+
+    // STEP 4 - Verify the booking in My Bookings
+    await test.step(
+      'Verify newly created booking',
+      async () => {
+
+        await myBookingsPage.openMyBookings();
+
+        await myBookingsPage.verifyBookingExists(
+          bookingReference,
+          eventName
+        );
+      }
+    );
+
+    // STEP 5 - Cancel the booking
+    await test.step(
+      'Cancel the five-ticket booking',
+      async () => {
+
+        // Capture inventory immediately before cancellation
+        await eventsPage.openEvents();
+
+        seatsBeforeCancellation =
+          await eventsPage.getAvailableSeats(eventName);
+
+        await myBookingsPage.openMyBookings();
+
+        await myBookingsPage.cancelBooking(bookingReference);
+      }
+    );
+
+    // STEP 6 - Verify the cancelled booking is gone from My Bookings (AC4)
+    await test.step(
+      'Verify cancelled booking is removed from My Bookings',
+      async () => {
+
+        await myBookingsPage.verifyBookingRemoved(bookingReference);
+      }
+    );
+
+    // STEP 7 - Verify seats restored
+    await test.step(
+      'Verify five seats restored after cancellation',
+      async () => {
+
+        await expect.poll(
+          async () => {
+
+            await eventsPage.openEvents();
+
+            return eventsPage.getAvailableSeats(eventName);
+          },
+          {
+            message: 'Cancellation should restore five seats',
+            timeout: 45000,
+            intervals: [1000, 2000]
+          }
+        ).toBe(seatsBeforeCancellation + quantity);
+      }
+    );
+
+    // If a step fails before STEP 5, the trackBooking fixture cancels the
+    // booking. After STEP 5 the cleanup finds it already gone and skips it.
   }
 );

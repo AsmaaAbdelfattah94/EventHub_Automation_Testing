@@ -17,6 +17,16 @@ export class MyBookingsPage {
         name: 'My Bookings'
       }).first()
     ).toBeVisible();
+
+    // The heading renders before the list. Wait until either a booking
+    // card or the empty state is shown, so card counts are reliable.
+    await expect(
+      this.page.getByTestId('booking-card').first()
+        .or(this.page.getByRole('heading', {
+          name: 'No bookings yet',
+          exact: true
+        }))
+    ).toBeVisible();
   }
 
   // Locate booking using its unique reference
@@ -83,6 +93,16 @@ export class MyBookingsPage {
         exact: false
       })
     ).toBeVisible();
+  }
+
+  // Verify a cancelled booking is no longer listed, before and after reload
+  async verifyBookingRemoved(reference: string) {
+
+    await expect(this.getBookingCard(reference)).toHaveCount(0);
+
+    await this.openMyBookings();
+
+    await expect(this.getBookingCard(reference)).toHaveCount(0);
   }
 
   // Verify the My Bookings page is empty

@@ -26,6 +26,28 @@ export class EventsPage {
     await eventCard.getByTestId('book-now-btn').click();
   }
 
+  // Read the ticket price shown on the event card
+  async getEventPrice(eventName: string): Promise<number> {
+
+    const eventCard = this.getEventCard(eventName);
+
+    await expect(eventCard).toBeVisible();
+
+    const text = await eventCard.innerText();
+
+    const match = text.match(
+      /\$\s*([\d,]+(?:\.\d{1,2})?)/
+    );
+
+    if (!match) {
+      throw new Error(
+        `Unable to extract the price from the ${eventName} card: ${text}`
+      );
+    }
+
+    return Number(match[1].replace(/,/g, ''));
+  }
+
   // Read the number of available seats
   async getAvailableSeats(eventName: string): Promise<number> {
 

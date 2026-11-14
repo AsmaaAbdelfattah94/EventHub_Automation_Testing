@@ -40,6 +40,4 @@ setup('Authenticate EventHub user', async ({ page }) => {
     path: authFile
   });
 
-  console.log('Authentication state saved successfully');
-
 });
