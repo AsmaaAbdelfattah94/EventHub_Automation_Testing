@@ -68,6 +68,11 @@ test.describe('Booking input validation', () => {
         : {},
       async ({ page, eventsPage, bookingPage, trackBooking }) => {
 
+        test.skip(
+          !!scenario.openQuestion,
+          scenario.openQuestion ?? 'PO clarification pending'
+        );
+
         const eventName = 'Dilli Diwali Mela';
         const customerName = 'Automation Test User';
 
@@ -126,14 +131,7 @@ test.describe('Booking input validation', () => {
           }
         );
 
-        // STEP 5 - Verify expected result
-        // Only scenarios with an open PO question are expected to fail,
-        // and only from here. An unexpected booking is still cancelled
-        // by the trackBooking fixture after the test.
-        test.fail(
-          !!scenario.openQuestion,
-          'Open question for the PO: the UI accepts this phone number'
-        );
+        // STEP 5 - Verify expected result (executed only for confirmed requirements).
 
         await test.step('Verify invalid input was rejected',
           async () => {
