@@ -1,9 +1,14 @@
 {
-  "name": "aabdelfattah",
+  "name": "eventhub-automation-testing",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {},
+  "description": "Playwright (TypeScript) UI and API automation for the EventHub ticket-booking flow (US-114)",
+  "scripts": {
+    "test": "playwright test --workers=1",
+    "test:ui": "playwright test --project=chromium --workers=1",
+    "test:api": "playwright test --project=api --workers=1",
+    "typecheck": "tsc --noEmit",
+    "report": "playwright show-report"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",

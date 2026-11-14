@@ -25,7 +25,7 @@ jobs:
       TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
       TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
       API_BASE_URL: https://api.eventhub.rahulshettyacademy.com/api/
-      API_IGNORE_HTTPS_ERRORS: "true"
+      API_IGNORE_HTTPS_ERRORS: "false"
 
     steps:
       - name: Checkout repository
